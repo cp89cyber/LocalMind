@@ -1,0 +1,40 @@
+{
+  "name": "localmind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local on-device music player with thumbs-based recommendations",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron:watch\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron:watch": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
+    "dev:electron": "wait-on tcp:5173 dist-electron/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron dist-electron/electron/main.js",
+    "build": "npm run build:electron && npm run build:renderer",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:renderer": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "music-metadata": "^11.9.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.15.30",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.6",
+    "@vitejs/plugin-react": "^4.4.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^35.7.5",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.19",
+    "vitest": "^2.1.9",
+    "wait-on": "^8.0.3"
+  }
+}
