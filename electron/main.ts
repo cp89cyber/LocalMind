@@ -1,5 +1,6 @@
 import * as path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { pathToFileURL } from "node:url";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol } from "electron";
 import { LocalMindDatabase } from "../src/main/db";
 import { scanLibraryFolder } from "../src/main/libraryScanner";
 import { Recommender } from "../src/main/recommender";
@@ -12,6 +13,23 @@ import {
   assertTrackId
 } from "../src/main/validators";
 import { IPC_CHANNELS } from "../src/shared/ipc";
+import {
+  MEDIA_SCHEME,
+  parseTrackIdFromMediaUrl
+} from "../src/shared/media";
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: MEDIA_SCHEME,
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+]);
 
 let mainWindow: BrowserWindow | null = null;
 let db: LocalMindDatabase | null = null;
@@ -61,6 +79,34 @@ function requireRecommender(): Recommender {
     throw new Error("Recommender not initialized");
   }
   return recommender;
+}
+
+function registerMediaProtocolHandler(): void {
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const localDb = requireDb();
+    const trackId = parseTrackIdFromMediaUrl(request.url);
+    if (!trackId) {
+      console.warn(`Invalid media request URL: ${request.url}`);
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const filePath = localDb.getTrackFilePath(trackId);
+    if (!filePath) {
+      console.warn(`Media track not found for id: ${trackId}`);
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const sourceUrl = pathToFileURL(filePath).href;
+    try {
+      return await net.fetch(sourceUrl, {
+        method: request.method,
+        headers: request.headers
+      });
+    } catch (error) {
+      console.error(`Failed to fetch media for track ${trackId}`, error);
+      return new Response("Internal Server Error", { status: 500 });
+    }
+  });
 }
 
 function registerIpcHandlers(): void {
@@ -139,6 +185,7 @@ async function bootstrap(): Promise<void> {
   const dbPath = path.join(app.getPath("userData"), "localmind.sqlite3");
   db = new LocalMindDatabase(dbPath);
   recommender = new Recommender(db);
+  registerMediaProtocolHandler();
   registerIpcHandlers();
   mainWindow = createMainWindow();
 

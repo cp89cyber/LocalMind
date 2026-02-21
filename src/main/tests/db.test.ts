@@ -43,6 +43,9 @@ describe("LocalMindDatabase", () => {
       throw new Error("trackId missing");
     }
 
+    expect(db.getTrackFilePath(trackId)).toBe(filePath);
+    expect(db.getTrackFilePath("missing-track-id")).toBeNull();
+
     db.submitThumb(trackId, 1);
     let track = db.getLibraryTracks()[0];
     let stats = db.getRecommendationTracks().find((entry) => entry.id === trackId);

@@ -18,11 +18,13 @@ describe("IPC validators", () => {
     expect(
       assertRecommendationContext({
         currentTrackId: "a",
-        recentTrackIds: ["a", "b"]
+        recentTrackIds: ["a", "b"],
+        excludeTrackIds: ["c"]
       })
     ).toEqual({
       currentTrackId: "a",
-      recentTrackIds: ["a", "b"]
+      recentTrackIds: ["a", "b"],
+      excludeTrackIds: ["c"]
     });
   });
 
@@ -37,8 +39,16 @@ describe("IPC validators", () => {
     expect(() =>
       assertRecommendationContext({
         currentTrackId: null,
-        recentTrackIds: [1, "ok"]
+        recentTrackIds: [1, "ok"],
+        excludeTrackIds: []
       })
     ).toThrow("Invalid recentTrackId");
+    expect(() =>
+      assertRecommendationContext({
+        currentTrackId: null,
+        recentTrackIds: [],
+        excludeTrackIds: [123]
+      })
+    ).toThrow("Invalid excludeTrackId");
   });
 });

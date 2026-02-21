@@ -75,9 +75,13 @@ export class Recommender {
   getNextRecommendation(
     ctx: RecommendationContext
   ): RecommendationDecision | null {
+    const excludeSet = new Set(ctx.excludeTrackIds);
     const rawTracks = this.source.getRecommendationTracks();
     const eligible = rawTracks.filter(
-      (track) => !track.isMissing && !track.hardSuppressed
+      (track) =>
+        !track.isMissing &&
+        !track.hardSuppressed &&
+        !excludeSet.has(track.id)
     );
 
     if (eligible.length === 0) {

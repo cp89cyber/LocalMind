@@ -12,6 +12,7 @@
     "build": "npm run build:electron && npm run build:renderer",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
+    "start": "electron .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

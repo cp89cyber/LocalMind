@@ -143,12 +143,25 @@ main {
   font-weight: 600;
 }
 
+.track-title-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .track-select {
   width: 100%;
   text-align: left;
   border-color: #64748b;
   background: #f8fafc;
   color: #0f172a;
+}
+
+.session-unplayable-label {
+  font-size: 0.7rem;
+  color: #991b1b;
+  font-weight: 600;
 }
 
 .thumb-cell {

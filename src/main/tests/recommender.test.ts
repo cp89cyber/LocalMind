@@ -40,7 +40,8 @@ describe("Recommender", () => {
 
     const decision = recommender.getNextRecommendation({
       currentTrackId: null,
-      recentTrackIds: []
+      recentTrackIds: [],
+      excludeTrackIds: []
     });
 
     expect(decision?.trackId).toBe("normal");
@@ -69,7 +70,8 @@ describe("Recommender", () => {
 
     const decision = recommender.getNextRecommendation({
       currentTrackId: null,
-      recentTrackIds: ["track-a", "track-b"]
+      recentTrackIds: ["track-a", "track-b"],
+      excludeTrackIds: []
     });
 
     expect(decision).not.toBeNull();
@@ -102,7 +104,8 @@ describe("Recommender", () => {
     for (let i = 0; i < iterations; i += 1) {
       const decision = recommender.getNextRecommendation({
         currentTrackId: null,
-        recentTrackIds: []
+        recentTrackIds: [],
+        excludeTrackIds: []
       });
 
       if (decision?.trackId === "unrated") {
@@ -112,5 +115,58 @@ describe("Recommender", () => {
 
     expect(unratedChosen).toBeGreaterThan(0);
     expect(unratedChosen).toBeLessThan(iterations);
+  });
+
+  it("excludes tracks listed in recommendation context", () => {
+    const recommender = new Recommender(
+      buildSource([
+        {
+          id: "track-a",
+          alpha: 100,
+          beta: 1,
+          hardSuppressed: false,
+          isMissing: false
+        },
+        {
+          id: "track-b",
+          alpha: 1,
+          beta: 1,
+          hardSuppressed: false,
+          isMissing: false
+        }
+      ]),
+      createLcg(9)
+    );
+
+    const decision = recommender.getNextRecommendation({
+      currentTrackId: null,
+      recentTrackIds: [],
+      excludeTrackIds: ["track-a"]
+    });
+
+    expect(decision?.trackId).toBe("track-b");
+  });
+
+  it("returns null when all candidates are excluded", () => {
+    const recommender = new Recommender(
+      buildSource([
+        {
+          id: "track-a",
+          alpha: 1,
+          beta: 1,
+          hardSuppressed: false,
+          isMissing: false
+        }
+      ]),
+      createLcg(13)
+    );
+
+    const decision = recommender.getNextRecommendation({
+      currentTrackId: null,
+      recentTrackIds: [],
+      excludeTrackIds: ["track-a"]
+    });
+
+    expect(decision).toBeNull();
   });
 });

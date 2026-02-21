@@ -308,6 +308,20 @@ export class LocalMindDatabase {
     }));
   }
 
+  getTrackFilePath(trackId: string): string | null {
+    const row = this.db
+      .prepare(
+        `
+        SELECT file_path
+        FROM tracks
+        WHERE id = ? AND is_missing = 0
+        `
+      )
+      .get(trackId) as { file_path: string } | undefined;
+
+    return row?.file_path ?? null;
+  }
+
   getRecommendationTracks(): RecommendationTrack[] {
     const rows = this.db
       .prepare(

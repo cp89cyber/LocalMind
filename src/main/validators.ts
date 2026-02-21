@@ -52,9 +52,19 @@ export function assertRecommendationContext(
     assertString(entry, "recentTrackId")
   );
 
+  const excludeTrackIdsRaw = value.excludeTrackIds;
+  if (!Array.isArray(excludeTrackIdsRaw)) {
+    throw new Error("Invalid excludeTrackIds");
+  }
+
+  const excludeTrackIds = excludeTrackIdsRaw.map((entry) =>
+    assertString(entry, "excludeTrackId")
+  );
+
   return {
     currentTrackId,
-    recentTrackIds
+    recentTrackIds,
+    excludeTrackIds
   };
 }
 

@@ -25,6 +25,7 @@ export interface ScanResult {
 export interface RecommendationContext {
   currentTrackId: string | null;
   recentTrackIds: string[];
+  excludeTrackIds: string[];
 }
 
 export interface RecommendationDecision {

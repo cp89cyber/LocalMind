@@ -52,11 +52,15 @@ export default function App(): JSX.Element {
   const [isChoosingFolder, setIsChoosingFolder] = useState(false);
   const [hasLoadedLibrary, setHasLoadedLibrary] = useState(false);
   const [didAutoPromptFolder, setDidAutoPromptFolder] = useState(false);
+  const [sessionUnplayableTrackIds, setSessionUnplayableTrackIds] = useState<string[]>(
+    []
+  );
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const currentTrackIdRef = useRef<string | null>(null);
   const historyRef = useRef<string[]>([]);
   const activeStartedTrackRef = useRef<string | null>(null);
+  const sessionUnplayableTrackIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     currentTrackIdRef.current = currentTrackId;
@@ -65,6 +69,30 @@ export default function App(): JSX.Element {
   useEffect(() => {
     historyRef.current = history;
   }, [history]);
+
+  useEffect(() => {
+    sessionUnplayableTrackIdsRef.current = sessionUnplayableTrackIds;
+  }, [sessionUnplayableTrackIds]);
+
+  const markTrackUnplayable = useCallback((trackId: string) => {
+    setSessionUnplayableTrackIds((prev) => {
+      if (prev.includes(trackId)) {
+        return prev;
+      }
+      return [...prev, trackId];
+    });
+  }, []);
+
+  const clearTrackUnplayable = useCallback((trackId: string) => {
+    setSessionUnplayableTrackIds((prev) => {
+      const next = prev.filter((entry) => entry !== trackId);
+      return next.length === prev.length ? prev : next;
+    });
+  }, []);
+
+  const clearUnplayableTracks = useCallback(() => {
+    setSessionUnplayableTrackIds((prev) => (prev.length === 0 ? prev : []));
+  }, []);
 
   const currentTrack = useMemo(
     () => findTrackById(tracks, currentTrackId),
@@ -141,11 +169,18 @@ export default function App(): JSX.Element {
   const playRecommended = useCallback(async () => {
     const recommendation = await getLocalMindApi().getNextRecommendation({
       currentTrackId: currentTrackIdRef.current,
-      recentTrackIds: historyRef.current
+      recentTrackIds: historyRef.current,
+      excludeTrackIds: sessionUnplayableTrackIdsRef.current
     });
 
     if (!recommendation) {
-      setStatusMessage("No recommendable tracks available. All tracks may be suppressed.");
+      if (sessionUnplayableTrackIdsRef.current.length > 0) {
+        setStatusMessage(
+          "No playable tracks available. Every remaining track failed in this session."
+        );
+      } else {
+        setStatusMessage("No recommendable tracks available. All tracks may be suppressed.");
+      }
       setIsPlaying(false);
       return;
     }
@@ -181,13 +216,14 @@ export default function App(): JSX.Element {
       setScanResult(result);
       setStatusMessage(summarizeScan(result));
       await refreshLibrary();
+      clearUnplayableTracks();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Scan failed: ${message}`);
     } finally {
       setIsScanning(false);
     }
-  }, [hasLoadedLibrary, refreshLibrary, tracks.length]);
+  }, [clearUnplayableTracks, hasLoadedLibrary, refreshLibrary, tracks.length]);
 
   const handleRescan = useCallback(async () => {
     if (!folderPath) {
@@ -202,13 +238,14 @@ export default function App(): JSX.Element {
       setScanResult(result);
       setStatusMessage(summarizeScan(result));
       await refreshLibrary();
+      clearUnplayableTracks();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Scan failed: ${message}`);
     } finally {
       setIsScanning(false);
     }
-  }, [folderPath, handleChooseFolderAndScan, refreshLibrary]);
+  }, [clearUnplayableTracks, folderPath, handleChooseFolderAndScan, refreshLibrary]);
 
   const handlePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -265,6 +302,14 @@ export default function App(): JSX.Element {
     [endCurrentTrack, playRecommended]
   );
 
+  const handlePlayTrackFromLibrary = useCallback(
+    async (trackId: string) => {
+      clearTrackUnplayable(trackId);
+      await startTrack(trackId, true);
+    },
+    [clearTrackUnplayable, startTrack]
+  );
+
   useEffect(() => {
     void refreshLibrary().catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -296,7 +341,7 @@ export default function App(): JSX.Element {
       return;
     }
 
-    audio.src = toAudioUrl(currentTrack.filePath);
+    audio.src = toAudioUrl(currentTrack.id);
     audio.currentTime = 0;
     setCurrentTimeSec(0);
     setCurrentDurationSec(currentTrack.durationSec ?? 0);
@@ -341,6 +386,8 @@ export default function App(): JSX.Element {
         return;
       }
 
+      clearTrackUnplayable(trackId);
+
       if (activeStartedTrackRef.current === trackId) {
         return;
       }
@@ -372,6 +419,10 @@ export default function App(): JSX.Element {
 
     const handleError = () => {
       void (async () => {
+        const failedTrackId = currentTrackIdRef.current;
+        if (failedTrackId) {
+          markTrackUnplayable(failedTrackId);
+        }
         await endCurrentTrack("error");
         await playRecommended();
       })();
@@ -392,7 +443,7 @@ export default function App(): JSX.Element {
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("error", handleError);
     };
-  }, [endCurrentTrack, playRecommended]);
+  }, [clearTrackUnplayable, endCurrentTrack, markTrackUnplayable, playRecommended]);
 
   return (
     <div className="app-shell">
@@ -449,7 +500,8 @@ export default function App(): JSX.Element {
         <LibraryView
           tracks={tracks}
           currentTrackId={currentTrackId}
-          onPlayTrack={(trackId) => void startTrack(trackId, true)}
+          sessionUnplayableTrackIds={sessionUnplayableTrackIds}
+          onPlayTrack={(trackId) => void handlePlayTrackFromLibrary(trackId)}
           onThumb={(trackId, value) => void handleThumb(trackId, value)}
         />
       </main>

@@ -1,4 +1,5 @@
 import type { Track } from "../../shared/types";
+import { buildTrackMediaUrl } from "../../shared/media";
 
 export const RECENT_TRACK_LIMIT = 20;
 
@@ -44,11 +45,8 @@ export function previousTrackId(
   return history[currentIndex - 1] ?? null;
 }
 
-export function toAudioUrl(filePath: string): string {
-  // Convert platform file paths into file:// URLs for the audio element.
-  const normalized = filePath.replace(/\\/g, "/");
-  const withPrefix = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return encodeURI(`file://${withPrefix}`);
+export function toAudioUrl(trackId: string): string {
+  return buildTrackMediaUrl(trackId);
 }
 
 export function formatDuration(totalSeconds: number | null): string {

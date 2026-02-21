@@ -4,6 +4,7 @@ import { formatDuration } from "../state/playerStore";
 interface LibraryViewProps {
   tracks: Track[];
   currentTrackId: string | null;
+  sessionUnplayableTrackIds: string[];
   onPlayTrack: (trackId: string) => void;
   onThumb: (trackId: string, value: ThumbValue) => void;
 }
@@ -23,6 +24,7 @@ function thumbButtonLabel(value: ThumbValue): string {
 export function LibraryView({
   tracks,
   currentTrackId,
+  sessionUnplayableTrackIds,
   onPlayTrack,
   onThumb
 }: LibraryViewProps): JSX.Element {
@@ -45,12 +47,13 @@ export function LibraryView({
       </div>
       {tracks.map((track) => {
         const isCurrent = track.id === currentTrackId;
+        const isSessionUnplayable = sessionUnplayableTrackIds.includes(track.id);
         return (
           <div
             key={track.id}
             className={`row track-row${isCurrent ? " current" : ""}`}
           >
-            <span>
+            <span className="track-title-cell">
               <button
                 type="button"
                 className="track-select"
@@ -58,6 +61,9 @@ export function LibraryView({
               >
                 {track.title}
               </button>
+              {isSessionUnplayable ? (
+                <span className="session-unplayable-label">Unplayable this session</span>
+              ) : null}
             </span>
             <span>{track.artist ?? "Unknown"}</span>
             <span>{track.album ?? "-"}</span>
