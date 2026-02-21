@@ -4,6 +4,7 @@ import { app, BrowserWindow, dialog, ipcMain, net, protocol } from "electron";
 import { LocalMindDatabase } from "../src/main/db";
 import { scanLibraryFolder } from "../src/main/libraryScanner";
 import { Recommender } from "../src/main/recommender";
+import { resolveRendererIndexPath } from "../src/main/rendererEntryPath";
 import {
   assertEndedReason,
   assertFolderPath,
@@ -36,7 +37,11 @@ let db: LocalMindDatabase | null = null;
 let recommender: Recommender | null = null;
 
 function getRendererIndexPath(): string {
-  return path.join(process.cwd(), "dist/renderer/index.html");
+  return resolveRendererIndexPath({
+    appPath: app.getAppPath(),
+    mainDirname: __dirname,
+    cwd: process.cwd()
+  });
 }
 
 function createMainWindow(): BrowserWindow {
@@ -57,11 +62,29 @@ function createMainWindow(): BrowserWindow {
     console.error(`Preload script failed: ${failedPreloadPath}`, error);
   });
 
+  win.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) {
+        return;
+      }
+      console.error(
+        `Renderer load failed (code: ${errorCode}, url: ${validatedURL})`,
+        errorDescription
+      );
+    }
+  );
+
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
-    win.loadURL(devServerUrl);
+    void win.loadURL(devServerUrl).catch((error) => {
+      console.error(`Failed to load renderer URL: ${devServerUrl}`, error);
+    });
   } else {
-    win.loadFile(getRendererIndexPath());
+    const rendererIndexPath = getRendererIndexPath();
+    void win.loadFile(rendererIndexPath).catch((error) => {
+      console.error(`Failed to load renderer file: ${rendererIndexPath}`, error);
+    });
   }
 
   return win;
