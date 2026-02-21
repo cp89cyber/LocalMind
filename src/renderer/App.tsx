@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { EndedReason, ScanResult, ThumbValue, Track } from "../shared/types";
+import type {
+  EndedReason,
+  LocalMindAPI,
+  ScanResult,
+  ThumbValue,
+  Track
+} from "../shared/types";
 import { LibraryView } from "./components/LibraryView";
 import { NowPlaying } from "./components/NowPlaying";
 import {
@@ -22,6 +28,16 @@ function summarizeScan(result: ScanResult): string {
   return `Scan done: ${result.added} added, ${result.updated} updated, ${result.missingMarked} missing, ${result.unsupported} unsupported`;
 }
 
+function getLocalMindApi(): LocalMindAPI {
+  const localMind = (window as Window & { localMind?: LocalMindAPI }).localMind;
+  if (!localMind) {
+    throw new Error(
+      "Desktop API bridge is unavailable. Open the Electron app window (not the browser tab) and restart `npm run dev`."
+    );
+  }
+  return localMind;
+}
+
 export default function App(): JSX.Element {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
@@ -33,6 +49,7 @@ export default function App(): JSX.Element {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isChoosingFolder, setIsChoosingFolder] = useState(false);
   const [hasLoadedLibrary, setHasLoadedLibrary] = useState(false);
   const [didAutoPromptFolder, setDidAutoPromptFolder] = useState(false);
 
@@ -55,7 +72,7 @@ export default function App(): JSX.Element {
   );
 
   const refreshLibrary = useCallback(async () => {
-    const nextTracks = await window.localMind.getLibraryTracks();
+    const nextTracks = await getLocalMindApi().getLibraryTracks();
     setTracks(nextTracks);
     setHasLoadedLibrary(true);
 
@@ -81,7 +98,7 @@ export default function App(): JSX.Element {
     }
 
     try {
-      await window.localMind.recordPlayEnd(trackId, getPercentPlayed(audio), reason);
+      await getLocalMindApi().recordPlayEnd(trackId, getPercentPlayed(audio), reason);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Failed to record play end: ${message}`);
@@ -122,7 +139,7 @@ export default function App(): JSX.Element {
   );
 
   const playRecommended = useCallback(async () => {
-    const recommendation = await window.localMind.getNextRecommendation({
+    const recommendation = await getLocalMindApi().getNextRecommendation({
       currentTrackId: currentTrackIdRef.current,
       recentTrackIds: historyRef.current
     });
@@ -137,7 +154,18 @@ export default function App(): JSX.Element {
   }, [startTrack]);
 
   const handleChooseFolderAndScan = useCallback(async () => {
-    const selectedFolder = await window.localMind.chooseLibraryFolder();
+    setIsChoosingFolder(true);
+    let selectedFolder: string | null = null;
+    try {
+      selectedFolder = await getLocalMindApi().chooseLibraryFolder();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Failed to open folder chooser: ${message}`);
+      return;
+    } finally {
+      setIsChoosingFolder(false);
+    }
+
     if (!selectedFolder) {
       if (!hasLoadedLibrary || tracks.length === 0) {
         setStatusMessage("No folder selected.");
@@ -149,7 +177,7 @@ export default function App(): JSX.Element {
     setIsScanning(true);
     setStatusMessage("Scanning library...");
     try {
-      const result = await window.localMind.scanLibrary(selectedFolder);
+      const result = await getLocalMindApi().scanLibrary(selectedFolder);
       setScanResult(result);
       setStatusMessage(summarizeScan(result));
       await refreshLibrary();
@@ -170,7 +198,7 @@ export default function App(): JSX.Element {
     setIsScanning(true);
     setStatusMessage("Scanning library...");
     try {
-      const result = await window.localMind.scanLibrary(folderPath);
+      const result = await getLocalMindApi().scanLibrary(folderPath);
       setScanResult(result);
       setStatusMessage(summarizeScan(result));
       await refreshLibrary();
@@ -214,7 +242,7 @@ export default function App(): JSX.Element {
 
   const handleThumb = useCallback(
     async (trackId: string, value: ThumbValue) => {
-      await window.localMind.submitThumb(trackId, value);
+      await getLocalMindApi().submitThumb(trackId, value);
 
       setTracks((prev) =>
         prev.map((track) => {
@@ -318,10 +346,17 @@ export default function App(): JSX.Element {
       }
 
       activeStartedTrackRef.current = trackId;
-      void window.localMind.recordPlayStart(trackId).catch((error) => {
+      try {
+        void getLocalMindApi()
+          .recordPlayStart(trackId)
+          .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatusMessage(`Failed to record play start: ${message}`);
+          });
+      } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setStatusMessage(`Failed to record play start: ${message}`);
-      });
+      }
     };
 
     const handlePause = () => {
@@ -364,13 +399,17 @@ export default function App(): JSX.Element {
       <header>
         <h1>LocalMind</h1>
         <div className="toolbar">
-          <button type="button" onClick={() => void handleChooseFolderAndScan()}>
+          <button
+            type="button"
+            onClick={() => void handleChooseFolderAndScan()}
+            disabled={isChoosingFolder || isScanning}
+          >
             Choose Folder
           </button>
           <button
             type="button"
             onClick={() => void handleRescan()}
-            disabled={isScanning}
+            disabled={isScanning || isChoosingFolder}
           >
             {isScanning ? "Scanning..." : "Rescan"}
           </button>

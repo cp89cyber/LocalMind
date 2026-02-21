@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS } from "../src/shared/ipc";
 import type { LocalMindAPI } from "../src/shared/types";
+
+const IPC_CHANNELS = {
+  chooseLibraryFolder: "localmind:chooseLibraryFolder",
+  scanLibrary: "localmind:scanLibrary",
+  getLibraryTracks: "localmind:getLibraryTracks",
+  submitThumb: "localmind:submitThumb",
+  getNextRecommendation: "localmind:getNextRecommendation",
+  recordPlayStart: "localmind:recordPlayStart",
+  recordPlayEnd: "localmind:recordPlayEnd"
+} as const;
 
 const api: LocalMindAPI = {
   chooseLibraryFolder() {
@@ -31,4 +40,8 @@ const api: LocalMindAPI = {
   }
 };
 
-contextBridge.exposeInMainWorld("localMind", api);
+if (process.contextIsolated) {
+  contextBridge.exposeInMainWorld("localMind", api);
+} else {
+  (globalThis as { localMind?: LocalMindAPI }).localMind = api;
+}

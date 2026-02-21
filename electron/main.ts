@@ -35,6 +35,10 @@ function createMainWindow(): BrowserWindow {
     }
   });
 
+  win.webContents.on("preload-error", (_event, failedPreloadPath, error) => {
+    console.error(`Preload script failed: ${failedPreloadPath}`, error);
+  });
+
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
     win.loadURL(devServerUrl);
@@ -60,20 +64,33 @@ function requireRecommender(): Recommender {
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.chooseLibraryFolder, async () => {
+  ipcMain.handle(IPC_CHANNELS.chooseLibraryFolder, async (event) => {
     const localDb = requireDb();
     const defaultPath = localDb.getLastLibraryFolder() ?? undefined;
-    const result = await dialog.showOpenDialog({
-      title: "Choose Music Folder",
-      defaultPath,
-      properties: ["openDirectory", "createDirectory"]
-    });
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? mainWindow ?? undefined;
 
-    if (result.canceled || result.filePaths.length === 0) {
-      return null;
+    try {
+      const result = owner
+        ? await dialog.showOpenDialog(owner, {
+            title: "Choose Music Folder",
+            defaultPath,
+            properties: ["openDirectory", "createDirectory"]
+          })
+        : await dialog.showOpenDialog({
+            title: "Choose Music Folder",
+            defaultPath,
+            properties: ["openDirectory", "createDirectory"]
+          });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+
+      return result.filePaths[0];
+    } catch (error) {
+      console.error("Failed to open folder chooser dialog", error);
+      throw new Error("Could not open the folder chooser. Please try again.");
     }
-
-    return result.filePaths[0];
   });
 
   ipcMain.handle(IPC_CHANNELS.scanLibrary, async (_event, folderPathRaw) => {
